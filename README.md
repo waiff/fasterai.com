@@ -12,11 +12,9 @@ Static HTML, CSS and vanilla JavaScript — no build step, no framework, no runt
 ├── assets/
 │   ├── app.js                  # Assembles the contact mailto: at runtime
 │   └── favicon.svg             # Forward-sheared 'F' mark
-├── CNAME                       # Custom domain for GitHub Pages
+├── .htaccess                   # HTTPS + canonical host, 404, caching, headers
 ├── robots.txt
-├── sitemap.xml
-├── .nojekyll                   # Serve files verbatim; skip Jekyll processing
-└── .github/workflows/deploy.yml
+└── sitemap.xml
 ```
 
 ## Local preview
@@ -30,28 +28,60 @@ python3 -m http.server 8000
 
 ## Deployment
 
-Pushing to `main` triggers `.github/workflows/deploy.yml`, which uploads the
-repository root as a Pages artifact and publishes it. No build stage runs.
+Hosted on Hostinger, deployed via **hPanel → Website → GIT**. Hostinger checks
+this repository out into `public_html`; there is no build stage.
 
-One-time setup in the repository:
+Setup:
 
-1. **Settings → Pages → Build and deployment → Source: GitHub Actions.**
-   This step cannot be automated from the workflow. Creating a Pages site is an
-   admin-scoped API call, and the workflow's `GITHUB_TOKEN` only reaches
-   `pages: write` — `actions/configure-pages` with `enablement: true` fails with
-   *"Create Pages site failed: Resource not accessible by integration"*. Until
-   the toggle is flipped, every run fails at the Configure Pages step.
-2. Point the apex domain at GitHub Pages via DNS `A` records:
-   `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`
-   (and `AAAA` records `2606:50c0:8000::153` … `8003::153` for IPv6).
-   Add a `CNAME` record for `www` → `<owner>.github.io`.
-3. Once DNS resolves, tick **Enforce HTTPS**.
+1. In hPanel → GIT, add this repository and set the branch to `main` and the
+   directory to `public_html`.
+2. Deploy. Hostinger pulls the tree on demand, or automatically if you add the
+   webhook it offers to the repository.
+3. Point the domain's DNS at Hostinger (their nameservers, or the `A` record
+   from hPanel → Hosting → Details).
+4. Issue the SSL certificate in hPanel → Security → SSL, then confirm
+   `https://fasterai.com` serves before uncommenting the HSTS line in
+   `.htaccess`.
 
-Re-run the failed workflow (Actions → Deploy to GitHub Pages → Re-run jobs) once
-step 1 is done; no new commit is needed.
+### `.git` in the web root
 
-The `CNAME` file in this repository must keep matching the custom domain
-configured under Settings → Pages, or Pages will drop the domain on the next deploy.
+hPanel Git deployment checks out the **whole repository**, `.git` included, into
+the document root. Left alone that publishes the full source history at
+`/.git/`, which any scanner will find. `.htaccess` refuses every dot-segment
+path before any other rule runs:
+
+```apache
+RewriteRule (^|/)\.(?!well-known/) - [F,L]
+```
+
+`.well-known/` is exempted so certificate validation still works. A `FilesMatch`
+block would not be enough on its own — it does not match directories, and `.git`
+is a directory.
+
+Verify after the first deploy:
+
+```bash
+curl -sI https://fasterai.com/.git/config   # expect 403
+curl -sI https://fasterai.com/              # expect 200
+```
+
+### What `.htaccess` covers
+
+GitHub Pages did these implicitly; shared hosting does not.
+
+| Concern | Handling |
+|---|---|
+| HTTPS | 301 to `https://fasterai.com`, checking `X-Forwarded-Proto` (Hostinger proxies TLS) |
+| Canonical host | `www` → apex, matching `<link rel="canonical">` |
+| 404 | `ErrorDocument 404 /404.html` |
+| Compression | `mod_deflate` for html, css, js, svg, xml |
+| Caching | 10 min html, 1 day css/js, 7 days svg — assets are not fingerprinted |
+| Headers | `nosniff`, `Referrer-Policy`, `X-Frame-Options`, `Permissions-Policy`, CSP |
+
+The CSP is enumerated from what the page actually loads — inline script/style,
+`self`, `cdn.tailwindcss.com`, `fonts.googleapis.com`, `fonts.gstatic.com` —
+with `connect-src` and `form-action` closed. Adding any new external resource
+means updating that header.
 
 ## Notes
 
