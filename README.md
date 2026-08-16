@@ -33,14 +33,17 @@ python3 -m http.server 8000
 Pushing to `main` triggers `.github/workflows/deploy.yml`, which uploads the
 repository root as a Pages artifact and publishes it. No build stage runs.
 
-One-time setup in the repository:
+The workflow passes `enablement: true` to `actions/configure-pages`, so it switches
+Pages on (build type: GitHub Actions) by itself on the first run — no manual toggle
+in Settings is required.
 
-1. **Settings → Pages → Build and deployment → Source: GitHub Actions.**
-2. Point the apex domain at GitHub Pages via DNS `A` records:
+Remaining one-time setup:
+
+1. Point the apex domain at GitHub Pages via DNS `A` records:
    `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`
    (and `AAAA` records `2606:50c0:8000::153` … `8003::153` for IPv6).
    Add a `CNAME` record for `www` → `<owner>.github.io`.
-3. Once DNS resolves, tick **Enforce HTTPS**.
+2. Once DNS resolves, tick **Enforce HTTPS**.
 
 The `CNAME` file in this repository must keep matching the custom domain
 configured under Settings → Pages, or Pages will drop the domain on the next deploy.
