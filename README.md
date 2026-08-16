@@ -33,17 +33,22 @@ python3 -m http.server 8000
 Pushing to `main` triggers `.github/workflows/deploy.yml`, which uploads the
 repository root as a Pages artifact and publishes it. No build stage runs.
 
-The workflow passes `enablement: true` to `actions/configure-pages`, so it switches
-Pages on (build type: GitHub Actions) by itself on the first run — no manual toggle
-in Settings is required.
+One-time setup in the repository:
 
-Remaining one-time setup:
-
-1. Point the apex domain at GitHub Pages via DNS `A` records:
+1. **Settings → Pages → Build and deployment → Source: GitHub Actions.**
+   This step cannot be automated from the workflow. Creating a Pages site is an
+   admin-scoped API call, and the workflow's `GITHUB_TOKEN` only reaches
+   `pages: write` — `actions/configure-pages` with `enablement: true` fails with
+   *"Create Pages site failed: Resource not accessible by integration"*. Until
+   the toggle is flipped, every run fails at the Configure Pages step.
+2. Point the apex domain at GitHub Pages via DNS `A` records:
    `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`
    (and `AAAA` records `2606:50c0:8000::153` … `8003::153` for IPv6).
    Add a `CNAME` record for `www` → `<owner>.github.io`.
-2. Once DNS resolves, tick **Enforce HTTPS**.
+3. Once DNS resolves, tick **Enforce HTTPS**.
+
+Re-run the failed workflow (Actions → Deploy to GitHub Pages → Re-run jobs) once
+step 1 is done; no new commit is needed.
 
 The `CNAME` file in this repository must keep matching the custom domain
 configured under Settings → Pages, or Pages will drop the domain on the next deploy.
